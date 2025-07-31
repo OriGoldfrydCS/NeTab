@@ -24,16 +24,15 @@
 - [**Advanced Usage**](#advanced-usage)
 - [**Contributing**](#contributing)
 - [**License**](#license)
-- [**Acknowledgments**](#acknowledgments)
 
 ---
 
 ## **Overview**
 
-**NeTab** is a cutting-edge AI system that revolutionizes network traffic analysis and generation using advanced GPT-2 architecture. Our system transforms 90 PPI (Packet-level Performance Indicators) features into intelligent, synthetic network traffic data with unprecedented precision.
+**NeTab** is a smart AI system that revolutionizes network traffic analysis and generation using advanced GPT-2 architecture. Our system transforms 90 PPI (Packet-level Performance Indicators) features into intelligent, synthetic network traffic data with unprecedented precision.
 
 > [!IMPORTANT]
-> NeTab employs a novel tokenization approach that converts numerical network features into structured tokens, enabling language models to understand and generate realistic network traffic patterns.
+> NeTab uses a new method that turns numbers from network data into special tokens. This helps language models understand the data better and create realistic network traffic.
 
 ### **What Makes NeTab Special?**
 
@@ -61,7 +60,7 @@
 - **Comprehensive Checkpointing** with best model tracking
 
 ### **Data Intelligence**
-- **90 PPI Features** across 3 packet directions (30 features each)
+- **90 PPI Features** across 3 packet directions (30 features each), including inter-packet timing, direction, and packet size
 - **APP Label Classification** for application identification
 - **Data Augmentation** with intelligent noise injection
 - **Stratified Splitting** for balanced train/validation/test sets
@@ -109,7 +108,7 @@ CUDA (optional, for GPU acceleration)
 
 1. **Clone the repository**:
 ```bash
-git clone https://github.com/yourrepo/netab.git
+git clone https://github.com/OriGoldfrydCS/NeTab.git
 cd netab
 ```
 
@@ -144,10 +143,10 @@ The [`training_stage.py`](training_stage.py) script provides comprehensive train
 
 ```python
 # Key Configuration Options
-TRAINING_MODE = 0  # 0: Frozen base + MLP, 1: Full fine-tuning
-BATCH_SIZE = 8     # Adjust based on your GPU memory
-EPOCHS = 50        # Number of training epochs
-LEARNING_RATE = 5e-5  # Learning rate for optimization
+TRAINING_MODE = 0      # 0: Frozen base + MLP, 1: Full fine-tuning
+BATCH_SIZE = 8         # Adjust based on your GPU memory
+EPOCHS = 50            # Number of training epochs
+LEARNING_RATE = 5e-5   # Learning rate for optimization
 ```
 
 ### **Training Process**
@@ -167,14 +166,10 @@ LEARNING_RATE = 5e-5  # Learning rate for optimization
 **Mode 0: Frozen Base + MLP Head**
 - Faster training (fewer parameters)
 - Lower memory requirements
-- Good for smaller datasets
-- Recommended for quick experiments
 
 **Mode 1: Full Fine-tuning**
-- Maximum performance potential
 - Full model adaptation
 - Higher memory requirements
-- Recommended for production use
 
 ---
 
@@ -193,11 +188,10 @@ The [`generation_stage.py`](generation_stage.py) script offers precision-guided 
 
 ```python
 # Generation Parameters
-GENERATION_MODE = 'data_aware_precision_guided'  # Only supported mode
-NUM_SAMPLES = 1000        # Number of samples to generate
-TEMPERATURE = 0.8         # Sampling randomness (0.1-1.0)
-TOP_K = 50               # Top-k sampling parameter
-TOP_P = 0.9              # Nucleus sampling parameter
+NUM_SAMPLES = 1000         # Number of samples to generate
+TEMPERATURE = 0.8          # Sampling randomness (0.1-1.0)
+TOP_K = 50                 # Top-k sampling parameter
+TOP_P = 0.9                # Nucleus sampling parameter
 ```
 
 ### **Generation Features**
@@ -226,23 +220,22 @@ TOP_P = 0.9              # Nucleus sampling parameter
 
 ```
 NeTab/
-├── images/                          # Logos and architecture diagrams
-│   ├── NeTab_Logo.png                 # Project logo
-│   └── NeTab_Architecture_Overview.png # System architecture
-├── dataset/                        # Training data directory
-│   ├── my_dataset.csv                 # Main training dataset
-│   └── cesnet/                        # CESNET dataset variants
-├── generated_data/                 # AI-generated synthetic data
-├── trained_model/                  # Saved model checkpoints
-├── network_traffic_generator/      # Core AI system modules
-│   ├── __init__.py                    # Package initialization
-│   ├── model.py                    # NetworkTrafficModel class
-│   ├── dataset.py                  # Data loading and preprocessing
-│   └── trainer.py                  # Training pipeline manager
-├── training_stage.py               # Main training script
-├── generation_stage.py             # Main generation script
-├── requirements.txt                # Python dependencies
-└── README.md                       # This file
+├── images/                                # Logos and architecture diagrams
+│   ├── NeTab_Logo.png                     # Project logo
+│   └── NeTab_Architecture_Overview.png    # System architecture
+├── dataset/                               # Training data directory
+│   ├── my_dataset.csv                     # Main training dataset
+├── generated_data/                        # AI-generated synthetic data
+├── trained_model/                         # Saved model checkpoints
+├── network_traffic_generator/             # Core AI system modules
+│   ├── __init__.py                        # Package initialization
+│   ├── model.py                           # NetworkTrafficModel class
+│   ├── dataset.py                         # Data loading and preprocessing
+│   └── trainer.py                         # Training pipeline manager
+├── training_stage.py                      # Main training script
+├── generation_stage.py                    # Main generation script
+├── requirements.txt                       # Python dependencies
+└── README.md                              # This file
 ```
 
 > [!TIP]
@@ -300,10 +293,10 @@ GENERATION_CONFIG = {
 
 | Metric | Mode 0 (Frozen+MLP) | Mode 1 (Full Fine-tuning) |
 |--------|---------------------|---------------------------|
-| **Training Time** | ~2-3 hours | ~6-8 hours |
+| **Training Time** | Short | Long |
 | **Memory Usage** | ~4GB VRAM | ~8GB VRAM |
 | **Generation Quality** | High | Excellent |
-| **Parameter Count** | ~2M trainable | ~124M trainable |
+| **Parameter Count** | ~24M trainable | ~124M trainable |
 
 ### **Data Quality Metrics**
 
@@ -334,9 +327,9 @@ from network_traffic_generator import NetworkTrafficModel, NetworkTrafficTrainer
 
 # Create custom model
 model = NetworkTrafficModel(
-    model_name="gpt2-medium",  # Use larger base model
-    training_mode=1,           # Full fine-tuning
-    hidden_size=1024           # Larger hidden size
+    model_name="gpt2-medium",    # Use larger base model
+    training_mode=1,             # Full fine-tuning
+    hidden_size=1024             # Larger hidden size
 )
 
 # Custom training
@@ -344,8 +337,8 @@ trainer = NetworkTrafficTrainer(
     model=model,
     train_dataloader=train_loader,
     val_dataloader=val_loader,
-    learning_rate=1e-5,        # Lower LR for fine-tuning
-    early_stopping_patience=10  # More patience
+    learning_rate=1e-5,          # Lower LR for fine-tuning
+    early_stopping_patience=10   # More patience
 )
 
 # Train with custom settings
@@ -366,9 +359,9 @@ model = NetworkTrafficModel.load_model("trained_model/best_model.pt")
 # Generate with specific parameters
 samples = model.generate_samples(
     n_samples=5000,
-    temperature=0.7,    # More conservative
-    top_k=30,          # More focused
-    top_p=0.85         # Tighter nucleus
+    temperature=0.7,      # More conservative
+    top_k=30,             # More focused
+    top_p=0.85            # Tighter nucleus
 )
 ```
 
@@ -414,32 +407,7 @@ We welcome contributions! Please follow these guidelines:
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-```
-MIT License
-
-Copyright (c) 2025 NeTab Team
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction...
-```
-
 ---
-
-## **Acknowledgments**
-
-### **Special Thanks**
-
-- **Hugging Face** for the transformers library
-- **PyTorch Team** for the excellent deep learning framework
-- **CESNET** for providing network traffic datasets
-- **OpenAI** for the GPT-2 architecture inspiration
-
-### **Research References**
-
-- *Attention Is All You Need* - Transformer Architecture
-- *Language Models are Unsupervised Multitask Learners* - GPT-2
-- *Network Traffic Classification Using Machine Learning* - Domain Knowledge
 
 ### **Inspiration**
 
@@ -454,9 +422,5 @@ This project was inspired by the need for high-quality synthetic network traffic
   [![Get Started](https://img.shields.io/badge/Get%20Started-Now-green?style=for-the-badge)](https://github.com/yourrepo/netab)
   [![Documentation](https://img.shields.io/badge/Read%20Docs-blue?style=for-the-badge)](https://github.com/yourrepo/netab/wiki)
   [![Examples](https://img.shields.io/badge/View%20Examples-orange?style=for-the-badge)](https://github.com/yourrepo/netab/examples)
-  
-  **Tomorrow's Traffic Today**
-  
-  Made with love by the NeTab Team
-  
+      
 </div>
