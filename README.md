@@ -1,13 +1,7 @@
-# NeTab: Network Traffic AI Blockchain
-
 <div align="center">
-  <img src="images/NeTab_Logo.png" alt="NeTab Logo" width="300">
-  
-  **Tomorrow's Traffic Today**
-  
+  <img src="images/NeTab_Logo.png" alt="NeTab Logo" width="600">
+    
   ![Repo Views](https://views.whatilearened.today/views/github/yourrepo/netab.svg)
-  ![GitHub Stars](https://img.shields.io/github/stars/yourrepo/netab?style=social)
-  ![GitHub Forks](https://img.shields.io/github/forks/yourrepo/netab?style=social)
   ![License](https://img.shields.io/badge/license-MIT-blue.svg)
   ![Python](https://img.shields.io/badge/python-3.8%2B-blue.svg)
   ![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-red.svg)
@@ -83,7 +77,7 @@
 ## **Architecture**
 
 <div align="center">
-  <img src="images/NeTab_Architecture_Overview.png" alt="NeTab Architecture" width="800">
+  <img src="images/NeTab_Architecture_Overview.png" alt="NeTab Architecture" width="1000">
 </div>
 
 ### **System Components**
