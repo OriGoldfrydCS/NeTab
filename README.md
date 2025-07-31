@@ -406,21 +406,3 @@ We welcome contributions! Please follow these guidelines:
 ## **License**
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
-### **Inspiration**
-
-This project was inspired by the need for high-quality synthetic network traffic data for security research, network optimization, and AI training without compromising real network privacy.
-
----
-
-<div align="center">
-  
-  **Ready to transform your network traffic analysis?**
-  
-  [![Get Started](https://img.shields.io/badge/Get%20Started-Now-green?style=for-the-badge)](https://github.com/yourrepo/netab)
-  [![Documentation](https://img.shields.io/badge/Read%20Docs-blue?style=for-the-badge)](https://github.com/yourrepo/netab/wiki)
-  [![Examples](https://img.shields.io/badge/View%20Examples-orange?style=for-the-badge)](https://github.com/yourrepo/netab/examples)
-      
-</div>
