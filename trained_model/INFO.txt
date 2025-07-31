@@ -1,0 +1,18 @@
+NeTab Trained Models Directory
+===============================
+
+This directory stores your trained AI models and checkpoints.
+
+What Gets Saved Here:
+--------------------
+After running training_stage.py, you'll find:
+
+- best_model.pt: Best performing model during training
+- final_model.pt: Model state at training completion
+- checkpoint_epoch_*.pt: Periodic training checkpoints
+- Model tokenizer files (*_tokenizer/)
+
+Usage:
+------
+These models are used by generation_stage.py to create synthetic data.
+Load models using NetworkTrafficModel.load_model("path/to/model.pt")

@@ -1,0 +1,20 @@
+NeTab Training Logs Directory
+=============================
+
+This directory contains training monitoring and log files.
+
+What Gets Saved Here:
+--------------------
+After running training_stage.py, you'll find:
+
+- Training log files (training_YYYYMMDD_HHMMSS.log)
+- Training history JSON files
+- Loss tracking and progress information
+
+Files Created:
+--------------
+- *.log files: Detailed training progress and metrics
+- training_history.json: Loss curves and learning rates
+- Timestamp-based naming to track multiple training runs
+
+Use these files to monitor training progress and debug issues.
