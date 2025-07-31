@@ -187,11 +187,16 @@ python generation_stage.py
 The [`generation_stage.py`](generation_stage.py) script offers precision-guided generation:
 
 ```python
-# Generation Parameters
-NUM_SAMPLES = 1000         # Number of samples to generate
-TEMPERATURE = 0.8          # Sampling randomness (0.1-1.0)
-TOP_K = 50                 # Top-k sampling parameter
-TOP_P = 0.9                # Nucleus sampling parameter
+# Run generation with default parameters
+python generation_stage.py
+
+# Or customize in your code using the model's generate_samples method:
+model.generate_samples(
+    n_samples=1000,           # Number of samples to generate
+    temperature=0.8,          # Sampling randomness (0.1-1.0)
+    top_k=50,                 # Top-k sampling parameter
+    top_p=0.9                 # Nucleus sampling parameter
+)
 ```
 
 ### **Generation Features**
