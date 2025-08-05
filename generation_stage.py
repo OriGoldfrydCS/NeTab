@@ -47,8 +47,14 @@ OUTPUT_DIR = "./generated_data"                     # Where synthetic data gets 
 # GENERATION SETTINGS - Control how much data to create
 # =============================================================================
 
-N_SAMPLES = 1000                                    # Number of synthetic samples to create
+N_SAMPLES = 10000                                   # Number of synthetic samples to create
 GENERATION_MODE = "data_aware_precision_guided"     # Smart distribution analysis + AI model + Algorithm refinement
+
+# =============================================================================
+# APPLICATION DISTRIBUTION SETTINGS
+# =============================================================================
+
+USE_ORIGINAL_PROPORTIONS = True   # Can be modified (True: maintain original app proportions, False: equal proportions for all apps)
 
 # =============================================================================
 # MODEL SETTINGS
@@ -101,13 +107,140 @@ def analyze_data_distributions(data: pd.DataFrame) -> dict:
     
     # Create analysis structure to store results
     analysis = {
-        'ppi_groups': {},                           # Statistics for each PPI group
+        'ppi_groups': {},                           # Statistics for each PPI group (global)
         'app_labels': list(data['APP'].unique()),   # List of application names
         'overall_stats': {},                        # General statistics
-        'adaptive_thresholds': {}                   # Smart limits for each data type
+        'adaptive_thresholds': {},                  # Smart limits for each data type
+        'app_specific': {}                          # Per-application analysis
     }
     
-    # Analyze each of the 3 PPI groups separately
+    # Calculate application proportions
+    app_counts = data['APP'].value_counts()
+    total_samples = len(data)
+    app_proportions = {}
+    
+    log_message("Application distribution in original data:")
+    for app, count in app_counts.items():
+        proportion = count / total_samples
+        app_proportions[app] = proportion
+        log_message(f"  {app}: {count:,} samples ({proportion:.2%})")
+    
+    analysis['app_proportions'] = app_proportions
+    analysis['total_samples'] = total_samples
+    
+    # Analyze each application separately
+    log_message(f"\nAnalyzing {len(analysis['app_labels'])} applications individually...")
+    
+    for app in analysis['app_labels']:
+        log_message(f"  Analyzing {app}...")
+        
+        # Filter data for this specific application
+        app_data = data[data['APP'] == app]
+        
+        # Create per-app analysis structure
+        analysis['app_specific'][app] = {
+            'ppi_groups': {},
+            'adaptive_thresholds': {},
+            'sample_count': len(app_data)
+        }
+        
+        # Analyze each of the 3 PPI groups for this application
+        for group in range(3):
+            # Get column names for this group (each group has 30 columns)
+            group_cols = [f"PPI_{group}_{i}" for i in range(30)]
+            group_data = app_data[group_cols]
+            
+            # Calculate basic statistics for this app
+            min_val = float(group_data.min().min())     # Smallest value
+            max_val = float(group_data.max().max())     # Largest value
+            mean_val = float(group_data.mean().mean())  # Average value
+            std_val = float(group_data.std().mean())    # How spread out values are
+            
+            # Get all values and remove zeros for better analysis
+            all_values = group_data.values.flatten()
+            non_zero_values = all_values[all_values != 0]
+            
+            # Set smart limits based on data type for this app
+            if group == 0:  # PPI_0_* - Inter-packet timing data
+                # For timing, use 98th percentile to avoid extreme outliers
+                p98 = np.percentile(all_values, 98) if len(all_values) > 0 else max_val
+                upper_threshold_stats = mean_val + 3 * std_val
+                upper_threshold = min(p98, upper_threshold_stats) if p98 > 0 else upper_threshold_stats
+                
+                # Don't be too restrictive with the upper limit
+                upper_threshold = max(upper_threshold, mean_val + 2.5 * std_val)
+                
+                adaptive_thresholds = {
+                    'lower_threshold': 0.0,                   # No negative timing allowed
+                    'upper_threshold': upper_threshold,       # Reasonable max timing
+                    'noise_std': std_val * 0.005              # Small amount of noise (0.5% of std)
+                }
+                
+            elif group == 1:  # PPI_1_* - Packet direction (should be -1, 0, or +1)
+                # For direction features, check what values actually exist
+                unique_vals = np.unique(all_values)
+                binary_tolerance = 0.05  # How close to exact binary values to accept
+                
+                adaptive_thresholds = {
+                    'binary_tolerance': binary_tolerance,
+                    'symmetry_break_chance': 0.05,              # 5% chance to break symmetry for variety
+                    'expected_binary_values': [-1.0, 1.0]       # Expected direction values
+                }
+                
+            elif group == 2:  # PPI_2_* - Packet size data
+                # For packet size, use 95th percentile (more conservative for timing)
+                p95 = np.percentile(all_values, 95) if len(all_values) > 0 else max_val
+                upper_threshold_stats = mean_val + 2.5 * std_val
+                upper_threshold = min(p95, upper_threshold_stats) if p95 > 0 else upper_threshold_stats
+                
+                # Ensure reasonable minimum threshold
+                upper_threshold = max(upper_threshold, mean_val + 2.0 * std_val)
+                
+                adaptive_thresholds = {
+                    'lower_threshold': 0.0,                     # No negative packet sizes
+                    'upper_threshold': upper_threshold,         # Reasonable max packet size
+                    'noise_std': min(std_val * 0.05, 10.0)      # Small noise: 5% of std or max 10ms
+                }
+            
+            # Store all the statistics for this group and application
+            analysis['app_specific'][app]['ppi_groups'][group] = {
+                'columns': group_cols,
+                'value_distributions': {},
+                'stats': {
+                    'min': min_val,
+                    'max': max_val,
+                    'mean': mean_val,
+                    'std': std_val,
+                    'p25': float(np.percentile(all_values, 25)) if len(all_values) > 0 else min_val,
+                    'p50': float(np.percentile(all_values, 50)) if len(all_values) > 0 else mean_val,
+                    'p75': float(np.percentile(all_values, 75)) if len(all_values) > 0 else max_val,
+                    'p90': float(np.percentile(all_values, 90)) if len(all_values) > 0 else max_val,
+                    'p95': float(np.percentile(all_values, 95)) if len(all_values) > 0 else max_val,
+                    'zero_ratio': float(np.sum(all_values == 0) / len(all_values)) if len(all_values) > 0 else 0.0,
+                    'non_zero_count': len(non_zero_values)
+                }
+            }
+            
+            # Store adaptive thresholds for this app
+            analysis['app_specific'][app]['adaptive_thresholds'][group] = adaptive_thresholds
+            
+            # Analyze value distributions for each column in this group for this app
+            for col in group_cols:
+                values = app_data[col].dropna()           # Remove missing values
+                unique_values = values.unique()           # Get all different values
+                value_counts = values.value_counts()      # Count how often each value appears
+                
+                # Store distribution information for this column and app
+                analysis['app_specific'][app]['ppi_groups'][group]['value_distributions'][col] = {
+                    'unique_values': unique_values.tolist(),
+                    'value_counts': value_counts.to_dict(),
+                    'probabilities': (value_counts / len(values)).to_dict()     # Convert counts to probabilities
+                }
+    
+    # Also create global analysis for fallback (keeping original functionality)
+    log_message("\nCreating global analysis for validation...")
+    
+    # Analyze each of the 3 PPI groups globally (all apps combined)
     for group in range(3):
         # Get column names for this group (each group has 30 columns)
         group_cols = [f"PPI_{group}_{i}" for i in range(30)]
@@ -201,7 +334,28 @@ def analyze_data_distributions(data: pd.DataFrame) -> dict:
             }
     
     # Show analysis results in the log
-    log_message("Data analysis results:")
+    log_message("\nPer-application analysis results:")
+    for app in analysis['app_labels']:
+        log_message(f"\n  Application: {app} ({analysis['app_specific'][app]['sample_count']:,} samples)")
+        
+        for group in range(3):
+            if group in analysis['app_specific'][app]['ppi_groups']:
+                stats = analysis['app_specific'][app]['ppi_groups'][group]['stats']
+                thresholds = analysis['app_specific'][app]['adaptive_thresholds'][group]
+                
+                group_names = ["Inter-packet timing", "Packet direction", "Packet size"]
+                log_message(f"    {group_names[group]} (PPI_{group}): {stats['min']:.1f} to {stats['max']:.1f}")
+                log_message(f"      Mean: {stats['mean']:.1f}, Std: {stats['std']:.1f}")
+                log_message(f"      Zero ratio: {stats['zero_ratio']:.1%}, P90: {stats['p90']:.1f}, P95: {stats['p95']:.1f}")
+                
+                if group == 0:
+                    log_message(f"      App-specific upper limit: {thresholds['upper_threshold']:.1f}")
+                elif group == 1:
+                    log_message(f"      Binary tolerance: {thresholds['binary_tolerance']:.1f}")
+                elif group == 2:
+                    log_message(f"      App-specific upper limit: {thresholds['upper_threshold']:.1f}")
+    
+    log_message("\nGlobal analysis results:")
     for group in range(3):
         stats = analysis['ppi_groups'][group]['stats']
         thresholds = analysis['adaptive_thresholds'][group]
@@ -351,18 +505,29 @@ def sample_from_distribution_precision_guided(col_analysis: dict, group: int = 0
 # REFINEMENT FUNCTIONS - Improving the generated data quality
 # =============================================================================
 
-def apply_smart_refinement(sample: dict, adaptive_thresholds: dict, perplexity: float = None) -> dict:
+def apply_smart_refinement(sample: dict, adaptive_thresholds: dict, perplexity: float = None, app_name: str = None) -> dict:
     """
     Apply SMART refinement optimized for network traffic data.
     Only fixes clear violations without destroying valid patterns.
+    Can use app-specific thresholds if app_name is provided.
     """
     refined_sample = sample.copy()
     refinement_applied = False
     
+    # Use app-specific thresholds if available, otherwise use global thresholds
+    if app_name and 'app_specific' in adaptive_thresholds and app_name in adaptive_thresholds['app_specific']:
+        thresholds_to_use = adaptive_thresholds['app_specific'][app_name]['adaptive_thresholds']
+    else:
+        thresholds_to_use = adaptive_thresholds.get('adaptive_thresholds', adaptive_thresholds)
+    
     # Apply refinement rules for each PPI group - but only when necessary
     for group in range(3):
         group_cols = [f"PPI_{group}_{i}" for i in range(30)]
-        thresholds = adaptive_thresholds[group]
+        
+        if group not in thresholds_to_use:
+            continue
+            
+        thresholds = thresholds_to_use[group]
         
         for col in group_cols:
             if col not in refined_sample:
@@ -424,47 +589,169 @@ def apply_smart_refinement(sample: dict, adaptive_thresholds: dict, perplexity: 
 # =============================================================================
 
 def generate_data_aware_samples(analysis: dict, n_samples: int) -> list:
-    """Generate synthetic samples using smart sampling based on original data patterns"""
-    log_message(f"Generating {n_samples} precision-guided samples...")
+    """Generate synthetic samples using smart sampling based on original data patterns per application"""
+    log_message(f"Generating {n_samples} precision-guided samples with per-application distributions...")
     
     samples = []  # List to store all generated samples
     
-    # Extract patterns from analysis to guide generation
-    model_feedback = extract_model_feedback_patterns(analysis)
-    log_message("Extracted model feedback patterns for enhanced sampling")
+    # Get application labels and calculate how many samples to generate for each app
+    app_labels = analysis['app_labels']
     
-    # Generate each sample one by one
-    for i in range(n_samples):
-        # Show progress every 200 samples
-        if i % 200 == 0:  
-            log_message(f"  Generating sample {i+1}/{n_samples}...")
+    # Calculate samples per application based on user preference
+    samples_per_app = {}
+    remaining_samples = n_samples
+    
+    if USE_ORIGINAL_PROPORTIONS:
+        # Use original data proportions
+        app_proportions = analysis['app_proportions']
+        log_message("Using ORIGINAL proportions from dataset:")
+        
+        for i, (app, proportion) in enumerate(app_proportions.items()):
+            if i == len(app_proportions) - 1:  # Last app gets remaining samples
+                app_samples = remaining_samples
+            else:
+                app_samples = int(n_samples * proportion)
+                remaining_samples -= app_samples
             
-        sample = {}  # Dictionary to store one sample's data
+            samples_per_app[app] = app_samples
+            log_message(f"  {app}: {app_samples} samples ({app_samples/n_samples:.1%}) - Original: {proportion:.1%}")
+    else:
+        # Use equal proportions for all applications
+        log_message("Using EQUAL proportions for all applications:")
+        samples_per_app_equal = n_samples // len(app_labels)
+        remaining_samples = n_samples % len(app_labels)
         
-        # Generate values for all PPI groups (0, 1, 2)
-        for group in range(3):
-            group_info = analysis['ppi_groups'][group]
+        for i, app in enumerate(app_labels):
+            if i < remaining_samples:  # Distribute remainder to first apps
+                app_samples = samples_per_app_equal + 1
+            else:
+                app_samples = samples_per_app_equal
+                
+            samples_per_app[app] = app_samples
+            proportion = app_samples / n_samples
+            original_proportion = analysis['app_proportions'][app]
+            log_message(f"  {app}: {app_samples} samples ({proportion:.1%}) - Original was: {original_proportion:.1%}")
+
+    # Generate samples for each application separately
+    for app in app_labels:
+        app_sample_count = samples_per_app[app]
+        if app_sample_count == 0:
+            continue
             
-            # Generate values for all 30 columns in this group
-            for col in group_info['columns']:
-                col_dist = group_info['value_distributions'][col]
-                value = sample_from_distribution_precision_guided(col_dist, group, model_feedback)
-                sample[col] = value
+        log_message(f"\nGenerating {app_sample_count} samples for {app}...")
         
-        # Pick a random application label from the original data
-        app_labels = analysis['app_labels']
-        sample['APP'] = np.random.choice(app_labels)
+        # Get app-specific analysis
+        app_analysis = analysis['app_specific'][app]
         
-        samples.append(sample)      # Add completed sample to list
+        # Extract patterns from analysis to guide generation for this app
+        model_feedback = extract_model_feedback_patterns_for_app(app_analysis)
+        log_message(f"  Extracted model feedback patterns for {app}")
+        
+        # Generate samples for this specific application
+        for i in range(app_sample_count):
+            # Show progress every 200 samples
+            if i % 200 == 0 and i > 0:  
+                log_message(f"    Generating {app} sample {i+1}/{app_sample_count}...")
+                
+            sample = {}  # Dictionary to store one sample's data
+            
+            # Generate values for all PPI groups (0, 1, 2) using app-specific distributions
+            for group in range(3):
+                if group not in app_analysis['ppi_groups']:
+                    continue
+                    
+                group_info = app_analysis['ppi_groups'][group]
+                
+                # Generate values for all 30 columns in this group using app-specific patterns
+                for col in group_info['columns']:
+                    if col in group_info['value_distributions']:
+                        col_dist = group_info['value_distributions'][col]
+                        value = sample_from_distribution_precision_guided(col_dist, group, model_feedback)
+                        sample[col] = value
+                    else:
+                        sample[col] = 0.0  # Default value if no distribution found
+            
+            # Set the application label for this sample
+            sample['APP'] = app
+            
+            samples.append(sample)      # Add completed sample to list
+    
+    log_message(f"\nCompleted generation: {len(samples)} total samples across {len(app_labels)} applications")
+    
+    # Verify the distribution
+    generated_app_counts = {}
+    for sample in samples:
+        app = sample['APP']
+        generated_app_counts[app] = generated_app_counts.get(app, 0) + 1
+    
+    log_message("Generated distribution verification:")
+    for app, count in generated_app_counts.items():
+        proportion = count / len(samples)
+        original_proportion = analysis['app_proportions'][app]
+        if USE_ORIGINAL_PROPORTIONS:
+            log_message(f"  {app}: {count} samples ({proportion:.1%}) - Target: {original_proportion:.1%}")
+        else:
+            log_message(f"  {app}: {count} samples ({proportion:.1%}) - Original was: {original_proportion:.1%}")
+        log_message(f"  {app}: {count} samples ({proportion:.1%}) - Original: {original_proportion:.1%}")
     
     return samples
 
+def extract_model_feedback_patterns_for_app(app_analysis: dict) -> dict:
+    """Find the most important patterns in the data to guide generation for a specific app"""
+    model_feedback = {'preferred_patterns': {}}
+    
+    for group in range(3):
+        if group not in app_analysis['ppi_groups']:
+            continue
+            
+        group_patterns = {}
+        group_info = app_analysis['ppi_groups'][group]
+        
+        # Find high-frequency, realistic patterns for each group based on network traffic knowledge
+        for col, col_info in group_info['value_distributions'].items():
+            probabilities = col_info['probabilities']
+            
+            # Identify preferred values based on domain knowledge
+            for value, prob in probabilities.items():
+                if group == 0:  # Inter-packet timing
+                    # Prefer realistic timing patterns
+                    if prob > 0.05 and 0.0001 <= value <= 1000.0:   # Realistic timing range
+                        group_patterns[value] = prob * 2.0          # Boost realistic timings
+                    elif prob > 0.08:                               # Very common patterns (even if outside ideal range)
+                        group_patterns[value] = prob * 1.5
+                        
+                elif group == 1:  # Packet direction
+                    # Strongly prefer exact binary values for direction
+                    if value in [-1.0, 0.0, 1.0] and prob > 0.02:
+                        group_patterns[value] = prob * 5.0          # Very strong boost for clean binary
+                    elif abs(value - (-1.0)) < 0.01 or abs(value - 1.0) < 0.01:
+                        group_patterns[value] = prob * 3.0          # Strong boost for near-binary
+                        
+                elif group == 2:  # Packet size
+                    # Prefer realistic packet sizes common in network traffic
+                    if 20 <= value <= 1500 and prob > 0.04:         # Standard Ethernet frames
+                        group_patterns[value] = prob * 3.0
+                    elif 1500 < value <= 9000 and prob > 0.02:      # Jumbo frames
+                        group_patterns[value] = prob * 2.0
+                    elif prob > 0.08:                               # Very common sizes (even if unusual)
+                        group_patterns[value] = prob * 1.5
+        
+        model_feedback['preferred_patterns'][group] = group_patterns
+    
+    return model_feedback
+
 def extract_model_feedback_patterns(analysis: dict) -> dict:
-    """Find the most important patterns in the data to guide generation"""
+    """Find the most important patterns in the data to guide generation (global fallback)"""
     model_feedback = {'preferred_patterns': {}}
     
     for group in range(3):
         group_patterns = {}
+        
+        # Use global analysis if available, otherwise skip
+        if group not in analysis.get('ppi_groups', {}):
+            model_feedback['preferred_patterns'][group] = group_patterns
+            continue
+            
         group_info = analysis['ppi_groups'][group]
         
         # Find high-frequency, realistic patterns for each group based on network traffic knowledge
@@ -603,9 +890,12 @@ def apply_model_perplexity_guidance(samples: list, model_path: str, analysis: di
         
         for i, sample in enumerate(samples):
             if i in refinement_candidates:
+                # Get app name from sample for app-specific refinement
+                sample_app = sample.get('APP', None)
+                
                 # Try refinement
                 refined_sample, was_refined = apply_smart_refinement(
-                    sample, adaptive_thresholds, perplexities[i]
+                    sample, adaptive_thresholds, perplexities[i], app_name=sample_app
                 )
                 
                 if was_refined:
@@ -752,6 +1042,7 @@ def save_samples(samples: list, analysis: dict, mode: str, model_guidance_used: 
         f.write(f"Generation Mode: {mode}\n")
         f.write(f"Original Data: {ORIGINAL_DATA_PATH}\n")
         f.write(f"Samples Generated: {len(df)}\n")
+        f.write(f"App Distribution: {'Original proportions' if USE_ORIGINAL_PROPORTIONS else 'Equal proportions'}\n")
         f.write(f"Model Guidance: {model_guidance_used}\n")
         f.write(f"Model Path: {MODEL_PATH}\n")
         if model_guidance_used:
@@ -937,6 +1228,7 @@ def main():
     log_message(f"Start at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     log_message(f"Mode: {GENERATION_MODE}")
     log_message(f"Samples: {N_SAMPLES}")
+    log_message(f"App Distribution: {'Original proportions' if USE_ORIGINAL_PROPORTIONS else 'Equal proportions'}")
     log_message(f"Model Guidance: {USE_MODEL_GUIDANCE}")
     
     if USE_MODEL_GUIDANCE:
