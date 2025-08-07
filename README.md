@@ -299,8 +299,7 @@ GENERATION_CONFIG = {
 | Metric | Mode 0 (Frozen+MLP) | Mode 1 (Full Fine-tuning) |
 |--------|---------------------|---------------------------|
 | **Training Time** | Short | Long |
-| **Memory Usage** | ~4GB VRAM | ~8GB VRAM |
-| **Generation Quality** | High | Excellent |
+| **Generation Quality** | High | High |
 | **Parameter Count** | ~24M trainable | ~124M trainable |
 
 ### **Data Quality Metrics**
